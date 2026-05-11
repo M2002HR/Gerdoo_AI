@@ -1,0 +1,67 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: gerdoo-mysql
+    command: --default-authentication-plugin=mysql_native_password
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "${MYSQL_PORT_HOST:-13306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  phpmyadmin:
+    image: phpmyadmin:5-apache
+    container_name: gerdoo-phpmyadmin
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      UPLOAD_LIMIT: 64M
+    ports:
+      - "${PHPMYADMIN_PORT_HOST:-18082}:80"
+
+  gemini-proxy:
+    build:
+      context: ./gemini_server
+    container_name: gemini-proxy
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  bale-ai-bot:
+    build:
+      context: .
+    container_name: bale-ai-bot
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      GEMINI_PROXY_BASE_URL: http://gemini-proxy:8000
+    depends_on:
+      gemini-proxy:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
