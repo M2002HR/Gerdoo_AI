@@ -68,6 +68,72 @@ class BaleBotApiClient:
             raise PlatformApiError("bale:sendMessage invalid response")
         return response
 
+    async def send_photo(
+        self,
+        chat_id: str,
+        *,
+        photo_bytes: bytes | None = None,
+        photo_url: str | None = None,
+        filename: str = "image.png",
+        caption: str | None = None,
+        reply_markup: dict | None = None,
+        reply_to_message_id: int | None = None,
+    ) -> dict:
+        if not photo_bytes and not photo_url:
+            raise ValueError("send_photo requires photo_bytes or photo_url")
+
+        if photo_bytes:
+            data: dict = {"chat_id": chat_id}
+            if caption:
+                data["caption"] = caption
+            if reply_markup:
+                data["reply_markup"] = self.encode_markup(reply_markup)
+            if reply_to_message_id and reply_to_message_id > 0:
+                data["reply_to_message_id"] = str(reply_to_message_id)
+            files = {"photo": (filename, photo_bytes, "image/png")}
+            response = await self._post("sendPhoto", data=data, files=files)
+        else:
+            payload: dict = {"chat_id": chat_id, "photo": str(photo_url)}
+            if caption:
+                payload["caption"] = caption
+            if reply_markup:
+                payload["reply_markup"] = reply_markup
+            if reply_to_message_id and reply_to_message_id > 0:
+                payload["reply_to_message_id"] = reply_to_message_id
+            response = await self._post("sendPhoto", json_payload=payload)
+
+        if not isinstance(response, dict):
+            raise PlatformApiError("bale:sendPhoto invalid response")
+        return response
+
+    async def send_document(
+        self,
+        chat_id: str,
+        *,
+        document_bytes: bytes,
+        filename: str,
+        mime_type: str = "text/markdown",
+        caption: str | None = None,
+        reply_markup: dict | None = None,
+        reply_to_message_id: int | None = None,
+    ) -> dict:
+        if not document_bytes:
+            raise ValueError("send_document requires document_bytes")
+
+        data: dict = {"chat_id": chat_id}
+        if caption:
+            data["caption"] = caption
+        if reply_markup:
+            data["reply_markup"] = self.encode_markup(reply_markup)
+        if reply_to_message_id and reply_to_message_id > 0:
+            data["reply_to_message_id"] = str(reply_to_message_id)
+
+        files = {"document": (filename, document_bytes, mime_type)}
+        response = await self._post("sendDocument", data=data, files=files)
+        if not isinstance(response, dict):
+            raise PlatformApiError("bale:sendDocument invalid response")
+        return response
+
     async def answer_callback_query(self, callback_query_id: str, text: str | None = None) -> dict:
         payload: dict = {"callback_query_id": callback_query_id}
         if text:

@@ -12,6 +12,7 @@ class Platform(str, Enum):
 class ContentType(str, Enum):
     TEXT = "TEXT"
     PHOTO = "PHOTO"
+    AUDIO = "AUDIO"
     CALLBACK = "CALLBACK"
     UNSUPPORTED = "UNSUPPORTED"
 
@@ -30,6 +31,9 @@ class IncomingMessage:
     caption: str | None = None
     source_file_id: str | None = None
     source_file_size: int | None = None
+    source_file_name: str | None = None
+    source_mime_type: str | None = None
+    source_duration_sec: int | None = None
     callback_data: str | None = None
     callback_query_id: str | None = None
     raw: dict[str, Any] | None = None

@@ -21,14 +21,15 @@ async def build_service(env_file: str = ".env") -> BaleAIBotService:
 
     ai_client = UnifiedAIGatewayClient(
         base_url=settings.uag_base_url,
-        endpoint=settings.uag_chat_endpoint,
+        chat_endpoint=settings.uag_chat_endpoint,
+        image_endpoint=settings.uag_image_endpoint,
+        audio_transcriptions_endpoint=settings.uag_audio_transcriptions_endpoint,
         timeout_sec=float(settings.uag_timeout_sec),
         generation_config=UAGGenerationConfig(
             temperature=settings.ai_temperature,
             top_p=settings.ai_top_p,
             max_output_tokens=settings.ai_max_output_tokens,
         ),
-        image_capable_models=settings.ai_image_capable_models,
         auth_token=settings.uag_auth_token if settings.uag_auth_enabled else "",
         auth_header_name=settings.uag_auth_header_name,
         debug_http=settings.log_http_enabled,

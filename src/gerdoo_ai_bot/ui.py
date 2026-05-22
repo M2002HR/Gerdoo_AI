@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-BTN_NEW_CHAT = "🧹 چت جدید"
-BTN_MODEL = "🧠 انتخاب مدل"
-BTN_STATUS = "📊 وضعیت"
+BTN_NEW_CHAT = "💬 گفتگوی جدید"
+BTN_CHAT = "💬 چت هوشمند"
+BTN_IMAGE_GENERATION = "🖼️ تولید تصویر"
+BTN_TRANSCRIBE = "🎙️ تبدیل ویس به متن"
+BTN_CANCEL = "❌ لغو عملیات"
 BTN_HELP = "❓ راهنما"
+BTN_SKIP_AUDIO_TOPIC = "⏭️ بدون موضوع"
 
 
 def reply_keyboard(rows: list[list[str]], resize: bool = True) -> dict:
@@ -22,42 +25,61 @@ def inline_keyboard(rows: list[list[dict]]) -> dict:
 def main_menu() -> dict:
     return reply_keyboard(
         [
-            [BTN_NEW_CHAT, BTN_MODEL],
-            [BTN_STATUS, BTN_HELP],
+            [BTN_CHAT, BTN_IMAGE_GENERATION],
+            [BTN_TRANSCRIBE, BTN_NEW_CHAT],
+            [BTN_HELP],
         ]
     )
 
 
-def model_selection_menu(models: list[str], current_model: str) -> dict:
-    rows: list[list[dict]] = []
-    for index, model in enumerate(models):
-        prefix = "✅ " if model == current_model else ""
-        rows.append(
+def cancel_only_menu() -> dict:
+    return reply_keyboard([[BTN_CANCEL]])
+
+
+def audio_topic_menu() -> dict:
+    return cancel_only_menu()
+
+
+def image_result_inline(generation_id: str) -> dict:
+    gid = (generation_id or "").strip()
+    return inline_keyboard(
+        [
             [
-                {
-                    "text": f"{prefix}{model}",
-                    "callback_data": f"mdl:set:{index}",
-                }
-            ]
-        )
-    rows.append([{"text": "🔁 بازگشت به منوی اصلی", "callback_data": "mdl:close"}])
-    return inline_keyboard(rows)
+                {"text": "🔁 تولید مجدد", "callback_data": f"img:regen:{gid}"},
+                {"text": "🧾 پرامپت بهبود‌یافته", "callback_data": f"img:prompt:{gid}"},
+            ],
+            [
+                {"text": "👍", "callback_data": f"img:fb:like:{gid}"},
+                {"text": "👎", "callback_data": f"img:fb:dislike:{gid}"},
+            ],
+        ]
+    )
 
 
-def welcome_text(default_model: str, history_limit: int) -> str:
+def welcome_text(history_limit: int) -> str:
     return (
-        "به ربات چت هوش مصنوعی خوش آمدید.\n\n"
-        "هر پیامی ارسال کنید تا پاسخ هوش مصنوعی را بگیرید.\n"
-        f"مدل پیش‌فرض: {default_model}\n"
+        "🌱 گفتگوی تازه شروع شد.\n"
+        "از اینجا یک مسیر جدید باز می‌شود و روی پاسخ‌های بعدی تمرکز می‌کنم.\n\n"
+        "برای شروع می‌تونی یکی از این ایده‌ها را امتحان کنی:\n"
+        "• 😌 چند روش عملی برای آرام‌تر شدن در روزهای شلوغ پیشنهاد بده\n"
+        "• 📗 یک موضوع درسی را ساده، قدم‌به‌قدم و با مثال توضیح بده\n\n"
+        "مسیرهای آماده:\n"
+        "• 💬 چت هوشمند\n"
+        "• 🖼️ تولید تصویر\n"
+        "• 🎙️ تبدیل ویس به متن\n\n"
         f"حافظه گفتگو: {history_limit} پیام اخیر"
     )
 
 
-def help_text() -> str:
+def help_text(*, max_voice_minutes: int = 5) -> str:
     return (
         "راهنما:\n"
-        "- متن عادی: ارسال به هوش مصنوعی\n"
-        "- دکمه «چت جدید»: پاک کردن تاریخچه همین گفتگو\n"
-        "- دکمه «انتخاب مدل»: تغییر مدل فعال شما\n"
-        "- دکمه «وضعیت»: نمایش تنظیمات فعلی شما"
+        "- 💬 گفتگوی جدید: یک شروع تازه با تاریخچه‌ی پاک.\n"
+        "- 💬 چت هوشمند: متن عادی بفرست تا پاسخ بگیری.\n"
+        "- 🖼️ تولید تصویر: دکمه را بزن، سپس پرامپت عکس را بفرست.\n"
+        "- در چت عادی، اگر عکس بفرستی تحلیل می‌کنم.\n"
+        "- در چت عادی، اگر ویس بفرستی متنش را تحلیل می‌کنم.\n"
+        "- 🎙️ تبدیل ویس به متن: ویس را فقط به متن تبدیل می‌کنم.\n"
+        f"- محدودیت ویس: حداکثر {max_voice_minutes} دقیقه.\n"
+        "- ❌ لغو عملیات: خروج از مسیرهای مرحله‌ای."
     )
