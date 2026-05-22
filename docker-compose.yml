@@ -23,13 +23,6 @@ services:
     image: phpmyadmin:5-apache
     container_name: gerdoo-phpmyadmin
     restart: unless-stopped
-    command:
-      - /bin/sh
-      - -lc
-      - |
-        printf '%s\n' 'ServerName localhost' > /etc/apache2/conf-available/zz-servername.conf
-        a2enconf zz-servername >/dev/null
-        exec apache2-foreground
     depends_on:
       mysql:
         condition: service_healthy
