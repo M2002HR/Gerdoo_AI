@@ -35,33 +35,86 @@ services:
     ports:
       - "${PHPMYADMIN_PORT_HOST:-18082}:80"
 
-  gemini-proxy:
+  uag-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  host-proxy-bridge:
+    image: alpine/socat
+    command:
+      - "TCP-LISTEN:32080,fork,reuseaddr,bind=0.0.0.0"
+      - "TCP:127.0.0.1:2080"
+    network_mode: host
+    restart: unless-stopped
+
+  uag-gateway:
     build:
-      context: ./gemini_server
-    container_name: gemini-proxy
+      context: ./uag_server
+      network: ${UAG_DOCKER_BUILD_NETWORK:-default}
+      args:
+        HTTP_PROXY: ${UAG_BUILD_HTTP_PROXY:-}
+        HTTPS_PROXY: ${UAG_BUILD_HTTPS_PROXY:-}
+        ALL_PROXY: ${UAG_BUILD_ALL_PROXY:-}
+        NO_PROXY: ${UAG_BUILD_NO_PROXY:-}
+        PIP_INDEX_URL: ${UAG_PIP_INDEX_URL:-}
+        PIP_EXTRA_INDEX_URL: ${UAG_PIP_EXTRA_INDEX_URL:-}
     restart: unless-stopped
     env_file:
       - ./.env
+    environment:
+      UAG_REDIS_URL: redis://uag-redis:6379/0
+      UAG_PROXY_URL: ${UAG_PROXY_URL_DOCKER:-}
+      UAG_PROXY_ENABLED: ${UAG_PROXY_ENABLED:-false}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
-      mysql:
+      uag-redis:
         condition: service_healthy
+      host-proxy-bridge:
+        condition: service_started
     ports:
-      - "8000:8000"
+      - "${UAG_PORT_HOST:-18080}:8080"
 
   bale-ai-bot:
     build:
       context: .
+      network: ${UAG_DOCKER_BUILD_NETWORK:-default}
+      args:
+        HTTP_PROXY: ${UAG_BUILD_HTTP_PROXY:-}
+        HTTPS_PROXY: ${UAG_BUILD_HTTPS_PROXY:-}
+        ALL_PROXY: ${UAG_BUILD_ALL_PROXY:-}
+        NO_PROXY: ${UAG_BUILD_NO_PROXY:-}
+        PIP_INDEX_URL: ${UAG_PIP_INDEX_URL:-}
+        PIP_EXTRA_INDEX_URL: ${UAG_PIP_EXTRA_INDEX_URL:-}
     container_name: bale-ai-bot
     restart: unless-stopped
     env_file:
       - ./.env
     environment:
-      GEMINI_PROXY_BASE_URL: http://gemini-proxy:8000
+      UAG_BASE_URL: http://uag-gateway:8080
+      UAG_CHAT_ENDPOINT: /v1/chat/completions
+      HTTP_PROXY: ${BALE_HTTP_PROXY:-}
+      HTTPS_PROXY: ${BALE_HTTPS_PROXY:-}
+      ALL_PROXY: ${BALE_ALL_PROXY:-}
+      NO_PROXY: ${BALE_NO_PROXY:-localhost,127.0.0.1,uag-gateway,mysql,uag-redis}
+      http_proxy: ${BALE_HTTP_PROXY:-}
+      https_proxy: ${BALE_HTTPS_PROXY:-}
+      all_proxy: ${BALE_ALL_PROXY:-}
+      no_proxy: ${BALE_NO_PROXY:-localhost,127.0.0.1,uag-gateway,mysql,uag-redis}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
-      gemini-proxy:
+      uag-gateway:
         condition: service_started
       mysql:
         condition: service_healthy
+      host-proxy-bridge:
+        condition: service_started
 
 volumes:
   mysql_data:

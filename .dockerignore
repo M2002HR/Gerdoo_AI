@@ -1,0 +1,10 @@
+.git
+.gitmodules
+.pytest_cache
+__pycache__
+*.pyc
+.venv
+.env
+tests
+uag_server
+*.log
