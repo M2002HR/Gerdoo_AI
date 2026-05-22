@@ -49,9 +49,9 @@ class PlatformApiError(BotError):
     pass
 
 
-class GeminiProxyError(BotError):
+class AIBackendError(BotError):
     pass
 
 
-class ModelCapabilityError(GeminiProxyError):
+class ModelCapabilityError(AIBackendError):
     pass

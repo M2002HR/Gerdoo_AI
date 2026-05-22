@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gerdoo-ai-bot"
 version = "0.1.0"
-description = "Bale AI chat bot powered by Gemini proxy"
+description = "Bale AI chat bot powered by Unified AI Gateway (UAG)"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

@@ -12,7 +12,7 @@ def test_load_settings_defaults(monkeypatch, tmp_path) -> None:
 
     settings = load_settings(env_file="/non/existent/path.env")
     assert settings.bale_bot_token == "token"
-    assert settings.gemini_default_model in settings.gemini_available_models
+    assert settings.ai_default_model in settings.ai_available_models
     assert settings.chat_history_max_messages == 10
     assert settings.db_url.endswith(str(db_path))
     assert Path(db_path).parent.exists()
@@ -31,7 +31,18 @@ def test_load_settings_requires_token(monkeypatch) -> None:
 def test_load_settings_normalizes_endpoint(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("BALE_BOT_TOKEN", "token")
     monkeypatch.setenv("DB_URL", f"sqlite+aiosqlite:///{tmp_path / 'chat.db'}")
-    monkeypatch.setenv("GEMINI_PROXY_ENDPOINT", "proxy/gemini")
+    monkeypatch.setenv("UAG_CHAT_ENDPOINT", "v1/chat/completions")
 
     settings = load_settings(env_file="/non/existent/path.env")
-    assert settings.gemini_proxy_endpoint == "/proxy/gemini"
+    assert settings.uag_chat_endpoint == "/v1/chat/completions"
+
+
+def test_load_settings_supports_legacy_env_names(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("BALE_BOT_TOKEN", "token")
+    monkeypatch.setenv("DB_URL", f"sqlite+aiosqlite:///{tmp_path / 'chat.db'}")
+    monkeypatch.setenv("GEMINI_PROXY_BASE_URL", "http://127.0.0.1:18000")
+    monkeypatch.setenv("GEMINI_PROXY_ENDPOINT", "/proxy/gemini")
+
+    settings = load_settings(env_file="/non/existent/path.env")
+    assert settings.uag_base_url == "http://127.0.0.1:18000"
+    assert settings.uag_chat_endpoint == "/proxy/gemini"

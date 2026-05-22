@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 from urllib.parse import unquote, urlparse
 
-import aiomysql
 import aiosqlite
+try:
+    import aiomysql
+except ModuleNotFoundError:  # pragma: no cover - mysql backend optional in sqlite-only setups
+    aiomysql = None  # type: ignore[assignment]
 
 from gerdoo_ai_bot.types import ChatMessage
 
@@ -49,7 +53,7 @@ class ChatStorage:
     def __init__(self, db_url: str) -> None:
         self.db_url = db_url
         self._parsed = parse_db_url(db_url)
-        self._mysql_pool: aiomysql.Pool | None = None
+        self._mysql_pool: Any | None = None
 
     async def init(self) -> None:
         if self._parsed.backend == "sqlite":
@@ -139,6 +143,8 @@ class ChatStorage:
             await conn.commit()
 
     async def _init_mysql(self) -> None:
+        if aiomysql is None:
+            raise RuntimeError("aiomysql is required for MySQL DB_URL. Install dependencies from requirements.txt")
         self._mysql_pool = await aiomysql.create_pool(
             host=self._parsed.mysql_host,
             port=int(self._parsed.mysql_port or 3306),

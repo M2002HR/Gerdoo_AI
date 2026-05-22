@@ -49,7 +49,7 @@ class DummyBaleClient:
         return None
 
 
-class DummyGeminiClient:
+class DummyAIClient:
     def __init__(self) -> None:
         self.calls: list[dict] = []
         self.reply_text = "پاسخ تست"
@@ -93,22 +93,22 @@ class DummyGeminiClient:
 class DummySettings:
     bale_poll_timeout_sec: int = 30
     bale_allowed_updates: list[str] = None
-    gemini_default_model: str = "gemma-4-26b-a4b-it"
-    gemini_available_models: list[str] = None
+    ai_default_model: str = "gemma-4-26b-a4b-it"
+    ai_available_models: list[str] = None
     chat_history_max_messages: int = 10
     chat_system_prompt: str = "system prompt"
     media_tmp_dir: str = "/tmp"
     media_max_image_mb: int = 10
     ui_thinking_text: str = "thinking"
     ui_show_help_on_start: bool = True
-    gemini_proxy_base_url: str = "http://127.0.0.1:8000"
-    gemini_proxy_endpoint: str = "/proxy/gemini"
+    uag_base_url: str = "http://127.0.0.1:8080"
+    uag_chat_endpoint: str = "/v1/chat/completions"
 
     def __post_init__(self) -> None:
         if self.bale_allowed_updates is None:
             self.bale_allowed_updates = ["message", "callback_query"]
-        if self.gemini_available_models is None:
-            self.gemini_available_models = ["gemma-4-26b-a4b-it", "gemini-3.1-flash-lite", "gemini-2.5-flash"]
+        if self.ai_available_models is None:
+            self.ai_available_models = ["gemma-4-26b-a4b-it", "gemini-3.1-flash-lite", "gemini-2.5-flash"]
 
 
 @pytest.mark.asyncio
@@ -116,7 +116,7 @@ async def test_start_command_sends_welcome(tmp_path) -> None:
     storage = ChatStorage(f"sqlite+aiosqlite:///{tmp_path / 'chat.db'}")
     await storage.init()
 
-    svc = BaleAIBotService(DummySettings(), DummyBaleClient(), DummyGeminiClient(), storage)
+    svc = BaleAIBotService(DummySettings(), DummyBaleClient(), DummyAIClient(), storage)
 
     incoming = IncomingMessage(
         platform=Platform.BALE,
@@ -139,7 +139,7 @@ async def test_model_change_via_callback(tmp_path) -> None:
     storage = ChatStorage(f"sqlite+aiosqlite:///{tmp_path / 'chat.db'}")
     await storage.init()
 
-    svc = BaleAIBotService(DummySettings(), DummyBaleClient(), DummyGeminiClient(), storage)
+    svc = BaleAIBotService(DummySettings(), DummyBaleClient(), DummyAIClient(), storage)
 
     incoming = IncomingMessage(
         platform=Platform.BALE,
@@ -165,7 +165,7 @@ async def test_chat_uses_selected_model_and_persists_history(tmp_path) -> None:
     await storage.init()
     await storage.set_selected_model("u1", "gemini-3.1-flash-lite")
 
-    svc = BaleAIBotService(DummySettings(), DummyBaleClient(), DummyGeminiClient(), storage)
+    svc = BaleAIBotService(DummySettings(), DummyBaleClient(), DummyAIClient(), storage)
 
     incoming = IncomingMessage(
         platform=Platform.BALE,
@@ -180,8 +180,8 @@ async def test_chat_uses_selected_model_and_persists_history(tmp_path) -> None:
     )
     await svc.handle_incoming(incoming)
 
-    assert svc.gemini_client.calls
-    assert svc.gemini_client.calls[0]["model"] == "gemini-3.1-flash-lite"
+    assert svc.ai_client.calls
+    assert svc.ai_client.calls[0]["model"] == "gemini-3.1-flash-lite"
 
 
 @pytest.mark.asyncio
@@ -189,7 +189,7 @@ async def test_photo_message_uses_inline_image_payload(tmp_path) -> None:
     storage = ChatStorage(f"sqlite+aiosqlite:///{tmp_path / 'chat.db'}")
     await storage.init()
 
-    svc = BaleAIBotService(DummySettings(), DummyBaleClient(), DummyGeminiClient(), storage)
+    svc = BaleAIBotService(DummySettings(), DummyBaleClient(), DummyAIClient(), storage)
 
     incoming = IncomingMessage(
         platform=Platform.BALE,
@@ -205,8 +205,8 @@ async def test_photo_message_uses_inline_image_payload(tmp_path) -> None:
     )
     await svc.handle_incoming(incoming)
 
-    assert svc.gemini_client.calls
-    assert svc.gemini_client.calls[0]["image_inline_data"] is not None
+    assert svc.ai_client.calls
+    assert svc.ai_client.calls[0]["image_inline_data"] is not None
 
     history = await storage.get_recent_chat("u1", 10)
     assert len(history) == 2
@@ -234,7 +234,7 @@ async def test_history_filters_meta_instruction_dump(tmp_path) -> None:
     )
     await storage.append_chat_message("u1", "user", "پیام سالم قبلی", keep_last=10)
 
-    svc = BaleAIBotService(DummySettings(), DummyBaleClient(), DummyGeminiClient(), storage)
+    svc = BaleAIBotService(DummySettings(), DummyBaleClient(), DummyAIClient(), storage)
     incoming = IncomingMessage(
         platform=Platform.BALE,
         update_id=11,
@@ -248,8 +248,8 @@ async def test_history_filters_meta_instruction_dump(tmp_path) -> None:
     )
     await svc.handle_incoming(incoming)
 
-    assert svc.gemini_client.calls
-    sent_history = svc.gemini_client.calls[0]["history"]
+    assert svc.ai_client.calls
+    sent_history = svc.ai_client.calls[0]["history"]
     assert "پیام سالم قبلی" in sent_history
     assert all("Input:" not in item for item in sent_history)
 
@@ -260,8 +260,8 @@ async def test_sanitize_meta_style_model_reply(tmp_path) -> None:
     await storage.init()
 
     bale = DummyBaleClient()
-    gemini = DummyGeminiClient()
-    gemini.reply_text = (
+    ai = DummyAIClient()
+    ai.reply_text = (
         'User says: "سلامسلام".\n'
         "Language: Persian.\n"
         "Tone: Friendly/Casual.\n"
@@ -270,7 +270,7 @@ async def test_sanitize_meta_style_model_reply(tmp_path) -> None:
         "Option 1: سلام! چطور می‌توانم کمکتان کنم؟\n"
         "Option 2: سلام! در خدمت هستم.\n"
     )
-    svc = BaleAIBotService(DummySettings(), bale, gemini, storage)
+    svc = BaleAIBotService(DummySettings(), bale, ai, storage)
 
     incoming = IncomingMessage(
         platform=Platform.BALE,

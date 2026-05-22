@@ -52,6 +52,20 @@ def test_parse_non_private_ignored() -> None:
     assert parse_update(update) is None
 
 
+def test_parse_non_private_callback_ignored() -> None:
+    update = {
+        "update_id": 5,
+        "callback_query": {
+            "id": "cb-x",
+            "data": "mdl:set:0",
+            "from": {"id": 200, "first_name": "Ali"},
+            "message": {"message_id": 11, "chat": {"id": -100, "type": "group"}},
+        },
+    }
+
+    assert parse_update(update) is None
+
+
 def test_parse_photo_message() -> None:
     update = {
         "update_id": 4,

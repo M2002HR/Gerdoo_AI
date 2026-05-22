@@ -10,34 +10,41 @@ from dotenv import load_dotenv
 DEFAULT_BALE_ALLOWED_UPDATES = ["message", "callback_query"]
 
 
-def _bool(name: str, default: bool) -> bool:
-    value = os.getenv(name)
+def _raw(*names: str) -> str | None:
+    for name in names:
+        if name in os.environ:
+            return os.getenv(name)
+    return None
+
+
+def _bool(default: bool, *names: str) -> bool:
+    value = _raw(*names)
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _int(name: str, default: int) -> int:
-    value = os.getenv(name)
+def _int(default: int, *names: str) -> int:
+    value = _raw(*names)
     if value is None or value == "":
         return default
     return int(value)
 
 
-def _float(name: str, default: float) -> float:
-    value = os.getenv(name)
+def _float(default: float, *names: str) -> float:
+    value = _raw(*names)
     if value is None or value == "":
         return default
     return float(value)
 
 
-def _str(name: str, default: str) -> str:
-    value = os.getenv(name)
+def _str(default: str, *names: str) -> str:
+    value = _raw(*names)
     return default if value is None else value
 
 
-def _csv(name: str, default: list[str]) -> list[str]:
-    value = os.getenv(name)
+def _csv(default: list[str], *names: str) -> list[str]:
+    value = _raw(*names)
     if not value:
         return default
     return [item.strip() for item in value.split(",") if item.strip()]
@@ -58,15 +65,19 @@ class Settings:
     bale_poll_timeout_sec: int
     bale_allowed_updates: list[str]
 
-    gemini_proxy_base_url: str
-    gemini_proxy_endpoint: str
-    gemini_proxy_timeout_sec: int
-    gemini_default_model: str
-    gemini_available_models: list[str]
-    gemini_temperature: float
-    gemini_top_p: float
-    gemini_max_output_tokens: int
-    gemini_image_capable_models: list[str]
+    uag_base_url: str
+    uag_chat_endpoint: str
+    uag_timeout_sec: int
+    uag_auth_enabled: bool
+    uag_auth_token: str
+    uag_auth_header_name: str
+
+    ai_default_model: str
+    ai_available_models: list[str]
+    ai_temperature: float
+    ai_top_p: float
+    ai_max_output_tokens: int
+    ai_image_capable_models: list[str]
 
     db_url: str
     chat_history_max_messages: int
@@ -83,68 +94,78 @@ def load_settings(env_file: str = ".env") -> Settings:
     load_dotenv(env_file, override=False)
 
     settings = Settings(
-        app_env=_str("APP_ENV", "development"),
-        log_level=_str("LOG_LEVEL", "INFO").upper(),
-        log_flow_enabled=_bool("LOG_FLOW_ENABLED", True),
-        log_http_enabled=_bool("LOG_HTTP_ENABLED", True),
-        log_text_preview_chars=max(20, _int("LOG_TEXT_PREVIEW_CHARS", 160)),
-        log_http_body_preview_chars=max(80, _int("LOG_HTTP_BODY_PREVIEW_CHARS", 500)),
-        bale_bot_token=_str("BALE_BOT_TOKEN", "").strip(),
-        bale_api_base_url=_str("BALE_API_BASE_URL", "https://tapi.bale.ai").strip().rstrip("/"),
-        bale_file_base_url=_str("BALE_FILE_BASE_URL", "https://tapi.bale.ai/file").strip().rstrip("/"),
-        bale_poll_timeout_sec=max(5, _int("BALE_POLL_TIMEOUT_SEC", 30)),
-        bale_allowed_updates=_csv("BALE_ALLOWED_UPDATES", DEFAULT_BALE_ALLOWED_UPDATES),
-        gemini_proxy_base_url=_str("GEMINI_PROXY_BASE_URL", "http://127.0.0.1:8000").strip().rstrip("/"),
-        gemini_proxy_endpoint=_str("GEMINI_PROXY_ENDPOINT", "/proxy/gemini").strip(),
-        gemini_proxy_timeout_sec=max(5, _int("GEMINI_PROXY_TIMEOUT_SEC", 90)),
-        gemini_default_model=_str("GEMINI_DEFAULT_MODEL", "gemma-4-26b-a4b-it").strip(),
-        gemini_available_models=_csv(
-            "GEMINI_AVAILABLE_MODELS",
-            ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
-        ),
-        gemini_temperature=max(0.0, _float("GEMINI_TEMPERATURE", 0.4)),
-        gemini_top_p=max(0.0, _float("GEMINI_TOP_P", 0.95)),
-        gemini_max_output_tokens=max(128, _int("GEMINI_MAX_OUTPUT_TOKENS", 1024)),
-        gemini_image_capable_models=_csv(
-            "GEMINI_IMAGE_CAPABLE_MODELS",
+        app_env=_str("development", "APP_ENV"),
+        log_level=_str("INFO", "LOG_LEVEL").upper(),
+        log_flow_enabled=_bool(True, "LOG_FLOW_ENABLED"),
+        log_http_enabled=_bool(True, "LOG_HTTP_ENABLED"),
+        log_text_preview_chars=max(20, _int(160, "LOG_TEXT_PREVIEW_CHARS")),
+        log_http_body_preview_chars=max(80, _int(500, "LOG_HTTP_BODY_PREVIEW_CHARS")),
+        bale_bot_token=_str("", "BALE_BOT_TOKEN").strip(),
+        bale_api_base_url=_str("https://tapi.bale.ai", "BALE_API_BASE_URL").strip().rstrip("/"),
+        bale_file_base_url=_str("https://tapi.bale.ai/file", "BALE_FILE_BASE_URL").strip().rstrip("/"),
+        bale_poll_timeout_sec=max(5, _int(30, "BALE_POLL_TIMEOUT_SEC")),
+        bale_allowed_updates=_csv(DEFAULT_BALE_ALLOWED_UPDATES, "BALE_ALLOWED_UPDATES"),
+        uag_base_url=_str("http://127.0.0.1:8080", "UAG_BASE_URL", "GEMINI_PROXY_BASE_URL").strip().rstrip("/"),
+        uag_chat_endpoint=_str("/v1/chat/completions", "UAG_CHAT_ENDPOINT", "GEMINI_PROXY_ENDPOINT").strip(),
+        uag_timeout_sec=max(5, _int(90, "UAG_TIMEOUT_SEC", "GEMINI_PROXY_TIMEOUT_SEC")),
+        uag_auth_enabled=_bool(False, "UAG_AUTH_ENABLED"),
+        uag_auth_token=_str("", "UAG_AUTH_TOKEN").strip(),
+        uag_auth_header_name=_str("x-api-token", "UAG_AUTH_HEADER_NAME").strip(),
+        ai_default_model=_str("gemini/gemini-2.5-flash", "AI_DEFAULT_MODEL", "GEMINI_DEFAULT_MODEL").strip(),
+        ai_available_models=_csv(
             [
-                "gemma-4-26b-a4b-it",
-                "gemma-4-31b-it",
-                "gemini-3.1-flash-lite",
-                "gemini-3.1-flash-lite-preview",
-                "gemini-2.5-flash",
-                "gemini-2.5-flash-lite",
-                "gemini-2.5-pro",
-                "gemini-2.0-flash",
-                "gemini-2.0-flash-lite",
+                "gemini/gemini-2.5-flash",
+                "gemini/gemini-2.5-pro",
+                "gemini/gemini-2.0-flash",
+                "groq/llama-3.3-70b-versatile",
             ],
+            "AI_AVAILABLE_MODELS",
+            "GEMINI_AVAILABLE_MODELS",
         ),
-        db_url=_str("DB_URL", "sqlite+aiosqlite:///./data/chat_history.db").strip(),
-        chat_history_max_messages=max(1, _int("CHAT_HISTORY_MAX_MESSAGES", 10)),
+        ai_temperature=max(0.0, _float(0.4, "AI_TEMPERATURE", "GEMINI_TEMPERATURE")),
+        ai_top_p=max(0.0, _float(0.95, "AI_TOP_P", "GEMINI_TOP_P")),
+        ai_max_output_tokens=max(128, _int(1024, "AI_MAX_OUTPUT_TOKENS", "GEMINI_MAX_OUTPUT_TOKENS")),
+        ai_image_capable_models=_csv(
+            [
+                "gemini/gemma-4-26b-a4b-it",
+                "gemini/gemma-4-31b-it",
+                "gemini/gemini-3.1-flash-lite",
+                "gemini/gemini-2.5-flash",
+                "gemini/gemini-2.5-flash-lite",
+                "gemini/gemini-2.5-pro",
+                "gemini/gemini-2.0-flash",
+                "gemini/gemini-2.0-flash-lite",
+            ],
+            "AI_IMAGE_CAPABLE_MODELS",
+            "GEMINI_IMAGE_CAPABLE_MODELS",
+        ),
+        db_url=_str("sqlite+aiosqlite:///./data/chat_history.db", "DB_URL").strip(),
+        chat_history_max_messages=max(1, _int(10, "CHAT_HISTORY_MAX_MESSAGES")),
         chat_system_prompt=_str(
-            "CHAT_SYSTEM_PROMPT",
             "You are a helpful assistant inside Bale messenger. Keep answers concise and practical.",
+            "CHAT_SYSTEM_PROMPT",
         ).strip(),
-        media_tmp_dir=_str("MEDIA_TMP_DIR", "./data/tmp_media").strip(),
-        media_max_image_mb=max(1, _int("MEDIA_MAX_IMAGE_MB", 10)),
-        ui_thinking_text=_str("UI_THINKING_TEXT", "⏳ در حال فکر کردن...").strip(),
-        ui_show_help_on_start=_bool("UI_SHOW_HELP_ON_START", True),
+        media_tmp_dir=_str("./data/tmp_media", "MEDIA_TMP_DIR").strip(),
+        media_max_image_mb=max(1, _int(10, "MEDIA_MAX_IMAGE_MB")),
+        ui_thinking_text=_str("⏳ در حال فکر کردن...", "UI_THINKING_TEXT").strip(),
+        ui_show_help_on_start=_bool(True, "UI_SHOW_HELP_ON_START"),
     )
 
     if not settings.bale_bot_token:
         raise ValueError("BALE_BOT_TOKEN is required")
 
-    if not settings.gemini_available_models:
-        settings.gemini_available_models = [settings.gemini_default_model]
+    if not settings.ai_available_models:
+        settings.ai_available_models = [settings.ai_default_model]
 
-    if settings.gemini_default_model not in settings.gemini_available_models:
-        settings.gemini_available_models.insert(0, settings.gemini_default_model)
-    settings.gemini_image_capable_models = [m.strip() for m in settings.gemini_image_capable_models if m.strip()]
+    if settings.ai_default_model not in settings.ai_available_models:
+        settings.ai_available_models.insert(0, settings.ai_default_model)
 
-    endpoint = settings.gemini_proxy_endpoint
+    settings.ai_image_capable_models = [m.strip() for m in settings.ai_image_capable_models if m.strip()]
+
+    endpoint = settings.uag_chat_endpoint
     if not endpoint.startswith("/"):
         endpoint = "/" + endpoint
-    settings.gemini_proxy_endpoint = endpoint
+    settings.uag_chat_endpoint = endpoint
 
     if settings.db_url.startswith(("sqlite:///", "sqlite+aiosqlite:///")):
         raw_path = settings.db_url.split("///", 1)[1]

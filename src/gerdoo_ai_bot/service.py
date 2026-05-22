@@ -11,14 +11,14 @@ from uuid import uuid4
 import httpx
 
 from gerdoo_ai_bot.clients.bale_api import BaleBotApiClient
-from gerdoo_ai_bot.clients.gemini_proxy import GeminiProxyClient
+from gerdoo_ai_bot.clients.uag import UnifiedAIGatewayClient
 from gerdoo_ai_bot.config import Settings
 from gerdoo_ai_bot.parser import parse_update
 from gerdoo_ai_bot.storage import ChatStorage
 from gerdoo_ai_bot.types import (
     ChatMessage,
     ContentType,
-    GeminiProxyError,
+    AIBackendError,
     IncomingMessage,
     ModelCapabilityError,
     PlatformApiError,
@@ -62,12 +62,12 @@ class BaleAIBotService:
         self,
         settings: Settings,
         bale_client: BaleBotApiClient,
-        gemini_client: GeminiProxyClient,
+        ai_client: UnifiedAIGatewayClient,
         storage: ChatStorage,
     ) -> None:
         self.settings = settings
         self.bale_client = bale_client
-        self.gemini_client = gemini_client
+        self.ai_client = ai_client
         self.storage = storage
         self._stop_event = asyncio.Event()
         self._flow_logs = bool(getattr(settings, "log_flow_enabled", True))
@@ -78,9 +78,9 @@ class BaleAIBotService:
         self._log_flow(
             "service_started",
             app_env=self.settings.app_env,
-            model_default=self.settings.gemini_default_model,
+            model_default=self.settings.ai_default_model,
             history_limit=self.settings.chat_history_max_messages,
-            proxy=f"{self.settings.gemini_proxy_base_url}{self.settings.gemini_proxy_endpoint}",
+            proxy=f"{self.settings.uag_base_url}{self.settings.uag_chat_endpoint}",
         )
 
         offset: int | None = None
@@ -117,7 +117,7 @@ class BaleAIBotService:
     async def stop(self) -> None:
         self._stop_event.set()
         await self.storage.aclose()
-        await self.gemini_client.aclose()
+        await self.ai_client.aclose()
         await self.bale_client.aclose()
 
     async def handle_incoming(self, incoming: IncomingMessage) -> None:
@@ -126,7 +126,7 @@ class BaleAIBotService:
             chat_id=incoming.chat_id,
             username=incoming.username,
             display_name=incoming.display_name,
-            default_model=self.settings.gemini_default_model,
+            default_model=self.settings.ai_default_model,
         )
 
         if incoming.content_type == ContentType.CALLBACK:
@@ -234,11 +234,11 @@ class BaleAIBotService:
                 await self.bale_client.answer_callback_query(incoming.callback_query_id or "", text="گزینه نامعتبر")
                 return
 
-            if index < 0 or index >= len(self.settings.gemini_available_models):
+            if index < 0 or index >= len(self.settings.ai_available_models):
                 await self.bale_client.answer_callback_query(incoming.callback_query_id or "", text="گزینه نامعتبر")
                 return
 
-            model = self.settings.gemini_available_models[index]
+            model = self.settings.ai_available_models[index]
             await self.storage.set_selected_model(incoming.user_id, model)
             await self.bale_client.answer_callback_query(
                 incoming.callback_query_id or "",
@@ -252,7 +252,7 @@ class BaleAIBotService:
     async def _handle_chat_message(self, incoming: IncomingMessage, text: str, use_image: bool) -> None:
         thinking_message_id = await self._send_thinking_message(incoming.chat_id)
 
-        model = await self.storage.get_selected_model(incoming.user_id, self.settings.gemini_default_model)
+        model = await self.storage.get_selected_model(incoming.user_id, self.settings.ai_default_model)
         raw_history = await self.storage.get_recent_chat(incoming.user_id, self.settings.chat_history_max_messages)
         history = self._sanitize_history(raw_history)
         self._log_flow(
@@ -279,7 +279,7 @@ class BaleAIBotService:
             return
 
         try:
-            reply = await self.gemini_client.generate_reply(
+            reply = await self.ai_client.generate_reply(
                 model=model,
                 user_message=text,
                 history=history,
@@ -293,8 +293,8 @@ class BaleAIBotService:
                 "مدل فعال از ورودی تصویر پشتیبانی نمی‌کند. لطفاً یک مدل تصویری انتخاب کنید.",
             )
             return
-        except GeminiProxyError as exc:
-            logger.warning("Gemini generation failed: %s", exc)
+        except AIBackendError as exc:
+            logger.warning("uag generation failed: %s", exc)
             await self.storage.log_ai_request(
                 user_id=incoming.user_id,
                 model=model,
@@ -309,7 +309,7 @@ class BaleAIBotService:
             )
             return
         except Exception:
-            logger.exception("Unexpected Gemini failure")
+            logger.exception("Unexpected UAG failure")
             await self._safe_delete_message(incoming.chat_id, thinking_message_id)
             await self._send_message(
                 incoming.chat_id,
@@ -352,21 +352,21 @@ class BaleAIBotService:
         await self._send_message(
             chat_id,
             welcome_text(
-                default_model=self.settings.gemini_default_model,
+                default_model=self.settings.ai_default_model,
                 history_limit=self.settings.chat_history_max_messages,
             ),
         )
 
     async def _show_model_selector(self, chat_id: str, user_id: str) -> None:
-        current = await self.storage.get_selected_model(user_id, self.settings.gemini_default_model)
+        current = await self.storage.get_selected_model(user_id, self.settings.ai_default_model)
         await self._send_message(
             chat_id,
             "مدل فعال خود را انتخاب کنید:",
-            reply_markup=model_selection_menu(self.settings.gemini_available_models, current),
+            reply_markup=model_selection_menu(self.settings.ai_available_models, current),
         )
 
     async def _show_status(self, chat_id: str, user_id: str) -> None:
-        model = await self.storage.get_selected_model(user_id, self.settings.gemini_default_model)
+        model = await self.storage.get_selected_model(user_id, self.settings.ai_default_model)
         image_support = "بله" if self._model_supports_images(model) else "خیر"
         text = (
             "وضعیت فعلی:\n"
@@ -420,8 +420,10 @@ class BaleAIBotService:
         }
 
     def _model_supports_images(self, model: str) -> bool:
-        model_id = model.split("/", 1)[1] if model.startswith("models/") else model
-        return model_id in self.gemini_client.image_capable_models
+        model_id = model.split("/", 1)[1] if "/" in model else model
+        if model_id.startswith("models/"):
+            model_id = model_id.split("/", 1)[1]
+        return model_id in self.ai_client.image_capable_models
 
     def _sanitize_history(self, history: list[ChatMessage]) -> list[ChatMessage]:
         cleaned = [item for item in history if not self._looks_like_meta_instruction(item.content)]

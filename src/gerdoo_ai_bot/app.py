@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from gerdoo_ai_bot.clients.bale_api import BaleBotApiClient
-from gerdoo_ai_bot.clients.gemini_proxy import GeminiGenerationConfig, GeminiProxyClient
+from gerdoo_ai_bot.clients.uag import UAGGenerationConfig, UnifiedAIGatewayClient
 from gerdoo_ai_bot.config import load_settings
 from gerdoo_ai_bot.service import BaleAIBotService
 from gerdoo_ai_bot.storage import ChatStorage
@@ -19,16 +19,18 @@ async def build_service(env_file: str = ".env") -> BaleAIBotService:
         body_preview_chars=settings.log_http_body_preview_chars,
     )
 
-    gemini_client = GeminiProxyClient(
-        base_url=settings.gemini_proxy_base_url,
-        endpoint=settings.gemini_proxy_endpoint,
-        timeout_sec=float(settings.gemini_proxy_timeout_sec),
-        generation_config=GeminiGenerationConfig(
-            temperature=settings.gemini_temperature,
-            top_p=settings.gemini_top_p,
-            max_output_tokens=settings.gemini_max_output_tokens,
+    ai_client = UnifiedAIGatewayClient(
+        base_url=settings.uag_base_url,
+        endpoint=settings.uag_chat_endpoint,
+        timeout_sec=float(settings.uag_timeout_sec),
+        generation_config=UAGGenerationConfig(
+            temperature=settings.ai_temperature,
+            top_p=settings.ai_top_p,
+            max_output_tokens=settings.ai_max_output_tokens,
         ),
-        image_capable_models=settings.gemini_image_capable_models,
+        image_capable_models=settings.ai_image_capable_models,
+        auth_token=settings.uag_auth_token if settings.uag_auth_enabled else "",
+        auth_header_name=settings.uag_auth_header_name,
         debug_http=settings.log_http_enabled,
         body_preview_chars=settings.log_http_body_preview_chars,
     )
@@ -38,6 +40,6 @@ async def build_service(env_file: str = ".env") -> BaleAIBotService:
     return BaleAIBotService(
         settings=settings,
         bale_client=bale_client,
-        gemini_client=gemini_client,
+        ai_client=ai_client,
         storage=storage,
     )

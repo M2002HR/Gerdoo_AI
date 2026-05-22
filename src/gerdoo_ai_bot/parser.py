@@ -9,6 +9,9 @@ def parse_update(update: dict) -> IncomingMessage | None:
         from_user = callback.get("from") or {}
         message = callback.get("message") or {}
         chat = message.get("chat") or {}
+        chat_type = chat.get("type")
+        if chat_type not in {None, "private"}:
+            return None
 
         user_id = from_user.get("id")
         chat_id = chat.get("id")
