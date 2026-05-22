@@ -7,8 +7,10 @@ A production-oriented Bale AI chat bot with centralized root `.env`, MySQL stora
 - `uag_server/` as a git submodule (source: `../Ajil_Unified_AI_Gateway`)
 - UAG provider stack (Gemini/Groq/Pollinations) with router + fallback
 - Bale bot with long-polling + keyboard UX
-- Per-user model selection
-- Photo + caption support (for image-capable models)
+- No user-side model selection (all models from env)
+- Photo + voice analysis in normal chat
+- Dedicated routes for image generation and voice-to-text
+- Image prompts are auto-converted/enhanced to English before generation
 - Per-user chat memory (configurable, default 10)
 - MySQL persistence for users/history/request logs
 - phpMyAdmin panel for DB inspection
@@ -30,7 +32,9 @@ The bot initializes these objects automatically:
 - `users`
 - `chat_history`
 - `ai_requests`
+- `bot_events`
 - `v_user_stats` (view for quick user/activity stats)
+- `v_bot_event_daily_stats` (daily ops/error/latency aggregates)
 
 ## One-time Setup
 
@@ -103,12 +107,26 @@ This updates:
 ## Bale Bot UX
 
 - `/start` show menu and bot intro
-- `🧹 چت جدید` clear chat memory
-- `🧠 انتخاب مدل` choose active model
-- `📊 وضعیت` show current model, memory depth, and image support
+- `💬 چت هوشمند` return to normal chat flow
+- `🖼️ تولید تصویر` open image generation flow (send prompt next)
+- `🎙️ تبدیل ویس به متن` open STT flow (send voice next)
+- `💬 گفتگوی جدید` clear chat memory
+- `❌ لغو عملیات` exit flow mode (image/STT)
 - `❓ راهنما` show usage help
-- Any text message is sent to UAG chat completions endpoint
-- Photo messages are supported and caption text is included in the prompt
+- In normal chat:
+  - text -> AI chat
+  - photo -> image description
+  - voice -> transcription + audio description
+- Voice duration limit is configurable via `MEDIA_MAX_VOICE_SEC` (default example: 600 = 10 minutes)
+- Routing and model chains are configured from root `.env` per capability
+- Per capability you can tune independently:
+  - `*_MODELS`
+  - `*_PROVIDERS`
+  - `*_ROUTER_*` (strategy/mode/providers/timeout/attempts)
+- STT provider/model are controlled by:
+  - `AI_TRANSCRIPTION_PROVIDER`
+  - `AI_TRANSCRIPTION_MODELS`
+  - plus UAG Groq retry/rotation envs (`UAG_GROQ_*`) for load-safety
 
 ## Testing
 
@@ -123,6 +141,13 @@ PYTHONPATH=src pytest -q
 
 - If bot cannot answer: `docker compose logs bale-ai-bot`
 - If gateway errors: `docker compose logs uag-gateway`
+- If voice-to-text fails with auth error:
+  - set `UAG_GROQ_API_KEYS` in root `.env`
+  - rebuild/restart bot + gateway
+- If analytics report cannot access UAG admin endpoints:
+  - ensure `UAG_ADMIN_ENABLED=true`
+  - set non-empty `UAG_ADMIN_TOKEN`
+  - same token is used automatically by `scripts/analytics_report.py`
 - If gateway module env mismatch: run `./scripts/sync_uag_env.sh`
 - If DB connection fails: confirm `mysql` health and `DB_URL` credentials
 - If phpMyAdmin login fails: verify `MYSQL_ROOT_PASSWORD`
@@ -136,6 +161,23 @@ Use these env variables for deeper diagnostics:
 - `LOG_HTTP_ENABLED=true` (HTTP request/response logs for Bale and UAG)
 - `LOG_TEXT_PREVIEW_CHARS=160`
 - `LOG_HTTP_BODY_PREVIEW_CHARS=500`
+
+Additionally, bot runtime now persists structured debug events in DB table `bot_events`
+and daily aggregates in view `v_bot_event_daily_stats`.
+
+## Analytics Snapshot
+
+Generate a combined bot/UAG analytics JSON report:
+
+```bash
+PYTHONPATH=src ./scripts/analytics_report.py --hours 24
+```
+
+Output includes:
+- active users
+- bot event success/failure and latency stats
+- AI request counts by model
+- UAG health/router/usage/log summaries (when admin endpoints are reachable)
 
 ## Verified Behavior (target)
 
