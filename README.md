@@ -62,6 +62,7 @@ Services:
 
 - UAG gateway: `http://127.0.0.1:${UAG_PORT_HOST:-18080}`
 - phpMyAdmin: `http://127.0.0.1:${PHPMYADMIN_PORT_HOST:-28082}`
+- Bot admin panel: `http://127.0.0.1:${BOT_ADMIN_PANEL_PORT_HOST:-18083}/admin`
 - MySQL host port: `${MYSQL_PORT_HOST:-23306}`
 
 ## phpMyAdmin Login
@@ -82,6 +83,12 @@ Services:
 
 ```bash
 ./scripts/start.sh
+```
+
+3. Optional: run admin panel:
+
+```bash
+./scripts/start_admin_panel.sh
 ```
 
 Local mode expects:
@@ -178,6 +185,26 @@ Output includes:
 - bot event success/failure and latency stats
 - AI request counts by model
 - UAG health/router/usage/log summaries (when admin endpoints are reachable)
+
+## Admin Panel (New)
+
+The project now includes a dedicated admin dashboard (gray theme, UAG-style layout) for:
+
+- interactive KPI cards and charts
+- daily usage trends (users/requests/errors/images/voice)
+- per-model and per-capability usage
+- top users and behavioral activity
+- filtered recent log events
+- UAG operational snapshot in the same panel
+
+Panel auth is token-based and reads from root `.env`:
+
+- `BOT_ADMIN_PANEL_ENABLED`
+- `BOT_ADMIN_PANEL_USERNAME`
+- `BOT_ADMIN_PANEL_PASSWORD`
+- `BOT_ADMIN_PANEL_TOKEN` (fallback to `UAG_ADMIN_TOKEN` when empty)
+- `BOT_ADMIN_PANEL_HEADER_NAME`
+- `BOT_ADMIN_PANEL_PORT_HOST`
 
 ## Verified Behavior (target)
 
