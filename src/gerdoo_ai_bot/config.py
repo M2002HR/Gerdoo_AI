@@ -148,6 +148,17 @@ class Settings:
     audio_transcript_cleanup_enabled: bool
     ai_image_regen_seed_min: int
     ai_image_regen_seed_max: int
+    admin_panel_enabled: bool
+    admin_panel_username: str
+    admin_panel_password: str
+    admin_panel_token: str
+    admin_panel_header_name: str
+    admin_panel_host: str
+    admin_panel_port: int
+    admin_panel_default_since_minutes: int
+    admin_panel_default_days: int
+    admin_panel_uag_enabled: bool
+    admin_panel_uag_timeout_sec: float
 
 
 def _router_settings(prefix: str, *, default_mode: str = "limit_safe") -> RouterSettings:
@@ -356,6 +367,18 @@ def load_settings(env_file: str = ".env") -> Settings:
         audio_transcript_cleanup_enabled=_bool(True, "AUDIO_TRANSCRIPT_CLEANUP_ENABLED"),
         ai_image_regen_seed_min=_int(1000, "AI_IMAGE_REGEN_SEED_MIN"),
         ai_image_regen_seed_max=_int(999999999, "AI_IMAGE_REGEN_SEED_MAX"),
+        admin_panel_enabled=_bool(True, "BOT_ADMIN_PANEL_ENABLED"),
+        admin_panel_username=_str("admin", "BOT_ADMIN_PANEL_USERNAME").strip(),
+        admin_panel_password=_str("", "BOT_ADMIN_PANEL_PASSWORD").strip(),
+        admin_panel_token=_str("", "BOT_ADMIN_PANEL_TOKEN", "UAG_ADMIN_TOKEN").strip(),
+        admin_panel_header_name=_str("x-admin-token", "BOT_ADMIN_PANEL_HEADER_NAME", "UAG_ADMIN_HEADER_NAME").strip()
+        or "x-admin-token",
+        admin_panel_host=_str("0.0.0.0", "BOT_ADMIN_PANEL_HOST").strip() or "0.0.0.0",
+        admin_panel_port=max(1, _int(8090, "BOT_ADMIN_PANEL_PORT")),
+        admin_panel_default_since_minutes=max(5, _int(1440, "BOT_ADMIN_PANEL_DEFAULT_SINCE_MINUTES")),
+        admin_panel_default_days=max(1, _int(30, "BOT_ADMIN_PANEL_DEFAULT_DAYS")),
+        admin_panel_uag_enabled=_bool(True, "BOT_ADMIN_PANEL_UAG_ENABLED"),
+        admin_panel_uag_timeout_sec=max(2.0, _float(8.0, "BOT_ADMIN_PANEL_UAG_TIMEOUT_SEC")),
     )
 
     if not settings.bale_bot_token:
@@ -403,6 +426,11 @@ def load_settings(env_file: str = ".env") -> Settings:
 
     if settings.ai_image_regen_seed_max < settings.ai_image_regen_seed_min:
         settings.ai_image_regen_seed_max = settings.ai_image_regen_seed_min
+
+    if not settings.admin_panel_token:
+        settings.admin_panel_token = _str("", "UAG_ADMIN_TOKEN").strip()
+    if not settings.admin_panel_header_name:
+        settings.admin_panel_header_name = _str("x-admin-token", "UAG_ADMIN_HEADER_NAME").strip() or "x-admin-token"
 
     if settings.db_url.startswith(("sqlite:///", "sqlite+aiosqlite:///")):
         raw_path = settings.db_url.split("///", 1)[1]
