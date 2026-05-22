@@ -21,6 +21,10 @@ def main() -> None:
         level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
         format="%(asctime)s %(levelname)s [%(process)d] %(name)s:%(lineno)d %(message)s",
     )
+    # Avoid leaking bot token from request URLs in httpx INFO logs.
+    logging.getLogger("httpx").setLevel(
+        getattr(logging, os.getenv("HTTPX_LOG_LEVEL", "WARNING").upper(), logging.WARNING)
+    )
 
     env_file = os.getenv("ENV_FILE", ".env")
 
