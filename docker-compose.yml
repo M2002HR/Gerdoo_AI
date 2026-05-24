@@ -48,7 +48,7 @@ services:
     image: alpine/socat
     command:
       - "TCP-LISTEN:32080,fork,reuseaddr,bind=0.0.0.0"
-      - "TCP:127.0.0.1:2080"
+      - "TCP:127.0.0.1:3128"
     network_mode: host
     restart: unless-stopped
 
